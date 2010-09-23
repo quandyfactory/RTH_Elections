@@ -928,14 +928,14 @@ def get_non_responses(election_id, question_id, type='web', ward=''):
         query = sql.text("""
             select c.candidate_id, c.ward, c.name
             from election_candidates c
-            left join election_responses r
-            on c.candidate_id = r.candidate_id
-            where (
-                r.response_id is null
-                or
-                r.question_id != :question_id
+            where c.candidate_id not in (
+                select c.candidate_id
+                from election_candidates c
+                left join election_responses r
+                on c.candidate_id = r.candidate_id
+                where r.question_id = :question_id
+                and c.election_id = :election_id
             )
-            and c.election_id = :election_id
             order by c.ward, c.name
             """, bind=sql.engine
         )
@@ -944,14 +944,14 @@ def get_non_responses(election_id, question_id, type='web', ward=''):
         query = sql.text("""
             select c.candidate_id, c.ward, c.name
             from election_candidates c
-            left join election_responses r
-            on c.candidate_id = r.candidate_id
-            where (
-                r.response_id is null
-                or
-                r.question_id != :question_id
+            where c.candidate_id not in (
+                select c.candidate_id
+                from election_candidates c
+                left join election_responses r
+                on c.candidate_id = r.candidate_id
+                where r.question_id = :question_id
+                and c.election_id = :election_id
             )
-            and c.election_id = :election_id
             and c.ward = :ward
             order by c.ward, c.name
             """, bind=sql.engine
