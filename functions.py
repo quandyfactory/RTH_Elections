@@ -32,9 +32,13 @@ def get_api_page(path):
     if page == '':
         elections = get_elections(type='api')
         output['elections'] = elections
+
     elif page == 'election':
         try: election_id = int(path[2])
         except: election_id = 0
+
+        try: ward = tools.friendly_name(path[3])
+        except: ward = ''
 
         if election_id == 0:
             output['ok'] = False
@@ -43,10 +47,12 @@ def get_api_page(path):
 
         details = get_election_details(election_id, type='api')
         output['details'] = details
-        candidates = get_candidates(election_id, type='api')
+        candidates = get_candidates(election_id, ward=ward, type='api')
         output['candidates'] = candidates
         questions = get_questions(election_id, type='api')
         output['questions'] = questions
+        wards = get_wards(election_id, type='api')
+        output['wards'] = wards
 
     elif page == 'candidate':
         try: candidate_id = int(path[2])
@@ -457,7 +463,7 @@ def get_candidate_page(path):
 
     details = get_candidate_details(election_id, candidate_id)
     if len(details) > 0:
-        row = details[0]
+        row = details
         name = get_straight_name(row['name'])
 
         title = '%s, Candidate for %s' % (name, row['ward'].replace(' 0', ' '))
@@ -630,7 +636,7 @@ def get_wards(election_id, type='web'):
                 'ward': row.ward,
                 'candidates': row.candidates,
                 'election': row.election,
-                'url': '%s/ward/%s/%s' % (stub, election_id, tools.unfriendly_name(row.ward)),
+                'url': '%s/election/%s/%s' % (stub, election_id, tools.unfriendly_name(row.ward)),
             }
         )
     return wards
@@ -704,6 +710,7 @@ def get_candidates(election_id, type='web', ward=''):
             'election_id': row.election_id,
             'website': row.website if row.website is not None else '',
             'bio': row.bio if row.bio is not None else '',
+            'gender': row.gender if row.gender is not None else '',
         })
     return candidates
 
@@ -726,7 +733,7 @@ def get_candidate_details(election_id, candidate_id, type='web'):
     rs = query.execute(candidate_id=candidate_id).fetchall()
     if len(rs) == 0: return []
     row = rs[0]
-    return [{
+    return {
         'url': '%s/candidate/%s/%s' % (stub, row.candidate_id, election_id, ),
         'name': row.name,
         'ward': row.ward,
@@ -740,7 +747,8 @@ def get_candidate_details(election_id, candidate_id, type='web'):
         'bio': row.bio if row.bio is not None else '',
         'election': row.election,
         'type': row.type,
-    }]
+        'gender': row.gender if row.gender is not None else '',
+    }
 
 def get_questions(election_id, type='web', ward=''):
     """
@@ -811,7 +819,7 @@ def get_responses(election_id, question_id, type='web', ward=''):
         query = sql.text("""
             select q.question_id, q.question,
             r.response_id, c.ward, c.candidate_id, c.name,
-            r.brief_response, r.full_response
+            r.brief_response, r.full_response, r.date_posted
             from election_candidates c
             inner join election_responses r
             on c.election_id = r.election_id
@@ -828,7 +836,7 @@ def get_responses(election_id, question_id, type='web', ward=''):
         query = sql.text("""
             select q.question_id, q.question,
             r.response_id, c.ward, c.candidate_id, c.name,
-            r.brief_response, r.full_response
+            r.brief_response, r.full_response, r.date_posted
             from election_candidates c
             inner join election_responses r
             on c.election_id = r.election_id
@@ -855,6 +863,7 @@ def get_responses(election_id, question_id, type='web', ward=''):
             'name': row.name,
             'brief_response': row.brief_response,
             'full_response': row.full_response,
+            'date_posted': str(row.date_posted)[:16] if row.date_posted != None else '',
         })
     return responses
 
@@ -869,7 +878,7 @@ def get_candidate_responses(election_id, candidate_id, type='web', ward=''):
         query = sql.text("""
             select q.question_id, q.question,
             r.response_id, c.ward, c.candidate_id, c.name,
-            r.brief_response, r.full_response
+            r.brief_response, r.full_response, r.date_posted
             from election_candidates c
             inner join election_responses r
             on c.election_id = r.election_id
@@ -886,7 +895,7 @@ def get_candidate_responses(election_id, candidate_id, type='web', ward=''):
         query = sql.text("""
             select q.question_id, q.question,
             r.response_id, c.ward, c.candidate_id, c.name,
-            r.brief_response, r.full_response
+            r.brief_response, r.full_response, r.date_posted
             from election_candidates c
             inner join election_responses r
             on c.election_id = r.election_id
@@ -913,6 +922,7 @@ def get_candidate_responses(election_id, candidate_id, type='web', ward=''):
             'name': row.name,
             'brief_response': row.brief_response,
             'full_response': row.full_response,
+            'date_posted': str(row.date_posted)[:16] if row.date_posted != None else '',
         })
     return responses
 

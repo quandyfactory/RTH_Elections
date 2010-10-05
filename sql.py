@@ -16,120 +16,44 @@ engine = create_engine(c.DB_CONNECTION,
     )
 metadata = MetaData(bind=engine)
 
-articles = Table('articles', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('auth_id', Integer, nullable=True),
-    Column('title', Unicode(255), nullable=True),
-    Column('section', Unicode(255), nullable=True),
-    Column('description', Unicode(1000), nullable=True),
-    Column('date_issued', Unicode(10), nullable=True),
-    Column('content', UnicodeText, nullable=True),
-    Column('lede', Integer, nullable=True),
-    Column('print', Integer, nullable=True),
-    Column('page_order', Integer, nullable=True),
-    )
+election_apidoc = Table('election_apidoc', metadata,
+    Column('doc_id', Integer, primary_key=True),
+    Column('content', Unicode(5000), nullable=True),
+    Column('last_updated', DateTime, nullable=True),
+)
 
-authors = Table('authors', metadata,
-    Column('auth_id', Integer, primary_key=True),
-    Column('auth_name', Unicode(255), nullable=True),
-    Column('auth_email', Unicode(255), nullable=True),
-    Column('auth_bio', Unicode(1000), nullable=True),
-    Column('username', Unicode(40), nullable=True),
-    )
+election_candidates = Table('election_candidates', metadata,
+    Column('candidate_id', Integer, primary_key=True),
+    Column('ward', Unicode(10), nullable=True),
+    Column('name', Unicode(10), nullable=True),
+    Column('address', Unicode(10), nullable=True),
+    Column('email', Unicode(10), nullable=True),
+    Column('home_phone', Unicode(10), nullable=True),
+    Column('bus_phone', Unicode(10), nullable=True),
+    Column('fax_number', Unicode(10), nullable=True),
+    Column('election_id', Integer, nullable=True),
+    Column('website', Unicode(10), nullable=True),
+    Column('gender', Unicode(10), nullable=True),
+    Column('bio', Unicode(10000), nullable=True),
+)
 
-blog = Table('blog', metadata,
-    Column('blog_id', Integer, primary_key=True),
-    Column('auth_id', Integer, nullable=True),
-    Column('title', Unicode(255), nullable=True),
-    Column('section', Unicode(255), nullable=True),
-    Column('date_issued', Unicode(10), nullable=True),
-    Column('content', UnicodeText, nullable=True),
-    )
+election_questions = Table('election_questions', metadata,
+    Column('question_id', Integer, primary_key=True),
+    Column('question', Unicode(1000), nullable=True),
+)
 
-comments = Table('comments', metadata,
-    Column('comment_id', Integer, primary_key=True),
-    Column('parent_id', Integer, nullable=True),
-    Column('orig_id', Integer, nullable=True),
-    Column('doctype', Unicode(255), nullable=True),
-    Column('username', Unicode(255), nullable=True),
+election_responses = Table('election_responses', metadata,
+    Column('response_id', Integer, primary_key=True),
+    Column('question_id', Integer, nullable=True),
+    Column('candidate_id', Integer, nullable=True),
+    Column('brief_response', Unicode(200), nullable=True),
+    Column('full_response', Unicode(5000), nullable=True),
     Column('date_posted', DateTime, nullable=True),
-    Column('comment', UnicodeText, nullable=True),
-    Column('spamflag', Integer, nullable=True),
-    )
+)
 
-comment_edits = Table('comment_edits', metadata,
-    Column('edit_id', Integer, primary_key=True),
-    Column('comment_id', Integer, nullable=True),
-    Column('username', Unicode(255), nullable=True),
-    Column('timestamp', DateTime, nullable=True),
-    )
-
-comment_votes = Table('comment_votes', metadata,
-    Column('vote_id', Integer, primary_key=True),
-    Column('username', Unicode(255), nullable=True),
-    Column('vote', Integer, nullable=True),
-    Column('comment_id', Integer, nullable=True),
-    )
-
-quotes = Table('quotes', metadata,
-    Column('quote_id', Integer, primary_key=True),
-    Column('quote_text', Unicode(1000), nullable=True),
-    Column('quote_attribution', Unicode(255), nullable=True),
-    Column('date_issued', Unicode(10), nullable=True),
-    )
-
-sections = Table('sections', metadata,
-    Column('section_id', Integer, primary_key=True),
-    Column('section', Unicode(255), nullable=True),
-    Column('banner', Unicode(255), nullable=True),
-    )
-
-spamwords = Table('spamwords', metadata,
-    Column('spamword', Unicode(100), nullable=True),
-    )
-
-traffic = Table('traffic', metadata,
-    Column('traffic_id', Integer, primary_key=True),
-    Column('date_time', DateTime, nullable=True),
-    Column('url', Unicode(255), nullable=True),
-    Column('query_string', Unicode(255), nullable=True),
-    Column('remote_host', Unicode(1000), nullable=True),
-    Column('http_referer', Unicode(255), nullable=True),
-    )
-
-users = Table('users', metadata,
-    Column('username', Unicode(40), primary_key=True),
-    Column('password_hashed', Unicode(80), nullable=True),
-    Column('email', Unicode(255), nullable=True),
-    Column('homepage', Unicode(255), nullable=True),
-    Column('showemail', SmallInteger, nullable=True),
-    Column('receivemail', SmallInteger, nullable=True),
-    Column('sigfile', Unicode(255), nullable=True),
-    Column('confirmationstring', Unicode(255), nullable=True),
-    Column('confirmed', SmallInteger, nullable=True),
-    Column('date_created', DateTime, nullable=True),
-    Column('comment_threshold', Integer, nullable=True),
-    Column('comment_threshold_enable', SmallInteger, nullable=True),
-    Column('show_scores', SmallInteger, nullable=True),
-    Column('fade', SmallInteger, nullable=True),
-    Column('admin', SmallInteger, nullable=True),
-    )
-
-wots = Table('wots', metadata,
-    Column('wots_id', Integer, primary_key=True),
-    Column('title', Unicode(255), nullable=True),
-    Column('date', Unicode(10), nullable=True),
-    Column('time', Unicode(255), nullable=True),
-    Column('location', Unicode(255), nullable=True),
-    Column('address', Unicode(255), nullable=True),
-    Column('contact_name', Unicode(255), nullable=True),
-    Column('contact_phone', Unicode(255), nullable=True),
-    Column('contact_ext', Unicode(255), nullable=True),
-    Column('contact_email', Unicode(255), nullable=True),
-    Column('details', UnicodeText, nullable=True),
-    Column('website', Unicode(255), nullable=True),
-    Column('username', Unicode(40), nullable=True),
-    Column('date_posted', DateTime, nullable=True),
-    )
+election_types = Table('election_types', metadata,
+    Column('type_id', Integer, primary_key=True),
+    Column('type', Unicode(100), nullable=True),
+)
 
 metadata.create_all()
