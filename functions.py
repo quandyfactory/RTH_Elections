@@ -53,6 +53,10 @@ def get_api_page(path):
         output['questions'] = questions
         wards = get_wards(election_id, type='api')
         output['wards'] = wards
+        articles = get_articles(election_id, 'article')
+        output['articles'] = articles
+        blogs = get_articles(election_id, 'blog')
+        output['blogs'] = blogs
 
     elif page == 'candidate':
         try: candidate_id = int(path[2])
@@ -74,13 +78,13 @@ def get_api_page(path):
         output['responses'] = responses
 
     elif page == 'question':
-        try: question_id = int(path[2])
+        try: question_id = int(path[3])
         except: question_id = 0
         if question_id == 0:
             output['ok'] = False
             output['error'] = '"%s" is not a valid question ID.' % path[2]
             return output
-        try: election_id = int(path[3])
+        try: election_id = int(path[2])
         except: election_id = 0
         if election_id == 0:
             output['ok'] = False
@@ -237,6 +241,8 @@ def get_election_page(path):
         addline('<ul>')
         addline('<li><a href="#questions">Campaign Questions</a></li>')
         addline('<li><a href="#candidates">Candidates</a></li>')
+        addline('<li><a href="#articles">RTH Articles</a></li>')
+        addline('<li><a href="#blogs">RTH Blog Entries</a></li>')
         addline('</ul>')
 
         addline('<h3><a name="questions"></a>Campaign Questions (<a href="#">top</a>)</h3>')
@@ -273,7 +279,13 @@ def get_election_page(path):
                         )
                     )
                     addline('<tr><th>Name</th><th>Email</th><th>Website</th><th>Phone</th></tr>')
-                addline('<tr>')
+                
+                this_class, this_title = '', ''
+                if row['withdrawn'] == 1:
+                    this_class = 'withdrawn'
+                    this_title = '%s has withdrawn from the election' % (get_straight_name(row['name']))
+
+                addline('<tr class="%s" title="%s">' % (this_class, this_title))
                 addline('<td style="white-space: nowrap"><a title="See details for %s" href="%s">%s</a></td>' % (row['name'], row['url'], row['name']))
                 if row['email'] != '':
                     addline('<td><a href="mailto:%s">%s</a></td>' % (row['email'], row['email']))
@@ -296,6 +308,24 @@ def get_election_page(path):
             addline('</tbody></table>')
             if ward != '':
                 addline('<p><a href="/election/%s">&larr; Back to Election page</a></p>' % (election_id))
+
+        addline('<h3><a name="articles"></a>RTH Articles (<a href="#">top</a>)</h3>')
+
+        articles = get_articles(election_id, 'article')
+        for article in articles:
+            addline('<p><a href="%s">%s</a>, By %s, Published %s</p>' % (
+                article['url'], article['title'], article['author'], article['date_issued']
+                )
+            )
+
+        addline('<h3><a name="blogs"></a>RTH Blog Entries (<a href="#">top</a>)</h3>')
+        blogs = get_articles(election_id, 'blog')
+        for blog in blogs:
+            addline('<p><a href="%s">%s</a>, By %s, Published %s</p>' % (
+                blog['url'], blog['title'], blog['author'], blog['date_issued']
+                )
+            )
+
 
     template = t.default
     template = template.replace('[[date]]', get_date())
@@ -711,8 +741,11 @@ def get_candidates(election_id, type='web', ward=''):
             'website': row.website if row.website is not None else '',
             'bio': row.bio if row.bio is not None else '',
             'gender': row.gender if row.gender is not None else '',
+            'incumbent': row.incumbent,
+            'withdrawn': row.withdrawn,
         })
     return candidates
+
 
 def get_candidate_details(election_id, candidate_id, type='web'):
     """
@@ -748,7 +781,10 @@ def get_candidate_details(election_id, candidate_id, type='web'):
         'election': row.election,
         'type': row.type,
         'gender': row.gender if row.gender is not None else '',
+        'incumbent': row.incumbent,
+        'withdrawn': row.withdrawn,
     }
+
 
 def get_questions(election_id, type='web', ward=''):
     """
@@ -763,6 +799,7 @@ def get_questions(election_id, type='web', ward=''):
         inner join election_responses r
         on q.question_id = r.question_id
         where r.election_id = :election_id
+        order by question_id
         """, bind=sql.engine
     )
     rs = query.execute(election_id=election_id).fetchall()
@@ -855,7 +892,6 @@ def get_responses(election_id, question_id, type='web', ward=''):
     responses = []
     for row in rs:
         responses.append({
-            'url': '%s/responses/%s' % (stub, row.response_id),
             'question_id': row.question_id,
             'question': row.question,
             'candidate_id': row.candidate_id,
@@ -863,9 +899,10 @@ def get_responses(election_id, question_id, type='web', ward=''):
             'name': row.name,
             'brief_response': row.brief_response,
             'full_response': row.full_response,
-            'date_posted': str(row.date_posted)[:16] if row.date_posted != None else '',
+            'date_posted': '%s:00' % (str(row.date_posted)[:16]) if row.date_posted != None else '',
         })
     return responses
+
 
 def get_candidate_responses(election_id, candidate_id, type='web', ward=''):
     """
@@ -922,7 +959,7 @@ def get_candidate_responses(election_id, candidate_id, type='web', ward=''):
             'name': row.name,
             'brief_response': row.brief_response,
             'full_response': row.full_response,
-            'date_posted': str(row.date_posted)[:16] if row.date_posted != None else '',
+            'date_posted': '%s:00' % (str(row.date_posted)[:16]) if row.date_posted != None else '',
         })
     return responses
 
@@ -978,3 +1015,42 @@ def get_non_responses(election_id, question_id, type='web', ward=''):
             'name': row.name,
         })
     return responses
+
+
+def get_articles(election_id, doctype):
+    """
+    Returns a list of RTH articles related to the election
+    """
+    if doctype == 'article':
+        query = sql.text("""
+            select a.id as orig_id, a.title, a.date_issued, au.auth_name
+            from elections e
+            inner join articles a on e.section = a.section
+            inner join authors au on a.auth_id = au.auth_id
+            where e.election_id = :election_id
+            order by a.id
+            """, bind=sql.engine
+        )
+    elif doctype == 'blog':
+        query = sql.text("""
+            select a.blog_id as orig_id, a.title, a.date_issued, au.auth_name
+            from elections e
+            inner join blog a on e.section = a.section
+            inner join authors au on a.auth_id = au.auth_id
+            where e.election_id = :election_id
+            order by a.blog_id
+            """, bind=sql.engine
+        )
+    else:
+        return []
+    
+    rs = query.execute(election_id=election_id).fetchall()
+    documents = []
+    for row in rs:
+        documents.append({
+            'url': 'http://raisethehammer.org/%s/%s' % (doctype, row.orig_id),
+            'title': row.title,
+            'author': row.auth_name,
+            'date_issued': row.date_issued,
+        })
+    return documents
