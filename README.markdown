@@ -149,4 +149,4 @@ Similarly, if you're building something and require a change to the API, additio
 
 ### Source Code
 
-The source code for this web application is [available on github]().
+The source code for this web application is [available on github](http://github.com/quandyfactory/RTH_Elections).
