@@ -19,11 +19,11 @@ import re
 import urllib
 import pytoc
 
+
 def get_api_page(path):
     """
     Returns JSON output from the site API.
     """
-
     output = { 'ok': True, }
 
     try: page = path[1]
@@ -57,6 +57,8 @@ def get_api_page(path):
         output['articles'] = articles
         blogs = get_articles(election_id, 'blog')
         output['blogs'] = blogs
+        apps = get_apps(election_id)
+        output['apps'] = apps
 
     elif page == 'candidate':
         try: candidate_id = int(path[2])
@@ -243,6 +245,7 @@ def get_election_page(path):
         addline('<li><a href="#candidates">Candidates</a></li>')
         addline('<li><a href="#articles">RTH Articles</a></li>')
         addline('<li><a href="#blogs">RTH Blog Entries</a></li>')
+        addline('<li><a href="#apps">Known Third-Party Apps</a></li>')
         addline('</ul>')
 
         addline('<h3><a name="questions"></a>Campaign Questions (<a href="#">top</a>)</h3>')
@@ -325,7 +328,16 @@ def get_election_page(path):
                 blog['url'], blog['title'], blog['author'], blog['date_issued']
                 )
             )
-
+        
+        addline('<h3><a name="apps"></a>Known Third-Party Apps (<a href="#">top</a>)</h3>')
+        apps = get_apps(election_id)
+        if len(apps) > 0:
+            addline('<ul>')
+            for app in apps:
+                addline('<li><a href="%s">%s</a></li>' % (app['url'], app['title']))
+            addline('</ul>')
+        else:
+            addline('<p class="red">There do not appear to be any known third-party apps for this election.</p>')
 
     template = t.default
     template = template.replace('[[date]]', get_date())
@@ -865,6 +877,7 @@ def get_responses(election_id, question_id, type='web', ward=''):
             on r.question_id = q.question_id
             where c.election_id = :election_id
             and r.question_id = :question_id
+            and c.withdrawn != 1
             order by c.ward, c.name
             """, bind=sql.engine
         )
@@ -883,6 +896,7 @@ def get_responses(election_id, question_id, type='web', ward=''):
             where c.election_id = :election_id
             and r.question_id = :question_id
             and c.ward = :ward
+            and c.withdrawn != 1
             order by c.ward, c.name
             """, bind=sql.engine
         )
@@ -983,6 +997,7 @@ def get_non_responses(election_id, question_id, type='web', ward=''):
                 where r.question_id = :question_id
                 and c.election_id = :election_id
             )
+            and c.withdrawn != 1
             order by c.ward, c.name
             """, bind=sql.engine
         )
@@ -999,6 +1014,7 @@ def get_non_responses(election_id, question_id, type='web', ward=''):
                 where r.question_id = :question_id
                 and c.election_id = :election_id
             )
+            and c.withdrawn != 1
             and c.ward = :ward
             order by c.ward, c.name
             """, bind=sql.engine
@@ -1054,3 +1070,24 @@ def get_articles(election_id, doctype):
             'date_issued': row.date_issued,
         })
     return documents
+
+
+def get_apps(election_id):
+    """
+    Returns a list of known third-party apps built on the RTH Elections API.
+    """
+    apps = []
+    query = sql.text("""
+        select * 
+        from election_apps 
+        where election_id = :election_id
+        """, bind=sql.engine
+    )
+    rs = query.execute(election_id=election_id).fetchall()
+    for row in rs:
+        apps.append({ 
+            'title': row.title,
+            'url': row.url,
+        })
+    return apps
+            
