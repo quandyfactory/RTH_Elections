@@ -22,6 +22,13 @@ election_apidoc = Table('election_apidoc', metadata,
     Column('last_updated', DateTime, nullable=True),
 )
 
+election_aps = Table('election_apps', metadata,
+    Column('app_id', Integer, primary_key=True),
+    Column('election_id', Integer, nullable=True),
+    Column('title', Unicode(1000), nullable=True),
+    Column('url', Unicode(255), nullable=True),
+)
+
 election_candidates = Table('election_candidates', metadata,
     Column('candidate_id', Integer, primary_key=True),
     Column('ward', Unicode(10), nullable=True),
@@ -35,6 +42,8 @@ election_candidates = Table('election_candidates', metadata,
     Column('website', Unicode(10), nullable=True),
     Column('gender', Unicode(10), nullable=True),
     Column('bio', Unicode(10000), nullable=True),
+    Column('incumbent', Integer, nullable=True),
+    Column('withdrawn', Integer, nullable=True),
 )
 
 election_questions = Table('election_questions', metadata,
