@@ -31,6 +31,7 @@ default = """
         <li><a href="/">Home</a></li>
         <li><a href="/elections">Elections</a></li>
         <li><a href="/wards">Ward Maps</a></li>
+        <li><a href="/results">Results</a></li>
         <li><a href="/apidoc">API Documentation</a></li>
         <li><a href="/api" target="_blank">API</a></li>
     </ul>

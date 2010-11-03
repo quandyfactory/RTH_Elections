@@ -198,6 +198,28 @@ class Handler():
         return page, headers
 
 
+    def results(self, path):
+        """
+        Main Page
+        """
+        headers = {}
+        headers['Content-Type'] = 'text/html; charset=utf-8'
+        output = []
+        addline = output.append
+
+        title, content = f.get_results_page(path)
+
+        addline(content)
+
+        page = html.write(site_domain=c.SITE_DOMAIN, site_name=c.SITE_NAME, css_path=c.CSS_PATH,
+            css_files=c.CSS_FILES, js_path=c.JS_PATH, js_files=c.JS_FILES, page_title=title,
+            page_author='Ryan McGreal', favicon_url=c.FAVICON_URL, body_content='\n'.join(output),
+            rss='http://elections.raisethehammer.org/feeds'
+        )
+
+        return page, headers
+
+
     def api(self, path):
         """
         Main Page

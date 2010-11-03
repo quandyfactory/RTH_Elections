@@ -20,6 +20,14 @@ import urllib
 import pytoc
 
 
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Page Generation Functions
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
 def get_api_page(path):
     """
     Returns JSON output from the site API.
@@ -32,6 +40,10 @@ def get_api_page(path):
     if page == '':
         elections = get_elections(type='api')
         output['elections'] = elections
+
+    elif page == 'results':
+        output = get_api_results_page(path)
+        return output
 
     elif page == 'election':
         try: election_id = int(path[2])
@@ -59,6 +71,11 @@ def get_api_page(path):
         output['blogs'] = blogs
         apps = get_apps(election_id)
         output['apps'] = apps
+        reports = 'summary details polls wards data'.split(' ')
+        results = []
+        for report in reports:
+            results.append({ 'url': '%s/api/results/%s/%s' % (c.SITE_DOMAIN, report, election_id)})
+        output['results'] = results
 
     elif page == 'candidate':
         try: candidate_id = int(path[2])
@@ -99,7 +116,219 @@ def get_api_page(path):
         non_responses = get_non_responses(election_id, question_id, type='api')
         output['non_responses'] = non_responses
 
+
     return output
+
+
+
+def get_api_results_page(path):
+    """
+    Returns election results
+    """
+    output = { 'ok': True, }
+
+    # get second tier
+    try: page = path[2]
+    except: page = ''
+
+    # get ward if applicable
+    try: ward = tools.friendly_name(path[4])
+    except: ward = ''
+
+    election_id = 0
+    try: election_id = int(page)
+    except: pass
+
+    if election_id > 0: # base results page, return links to reports
+        reports = []
+        reportlist = 'summary details polls wards data'.split(' ')
+        for r in reportlist:
+            reports.append({
+                'report': '%s' % tools.friendly_name(r),
+                'url': '%s/api/results/%s/%s' % (c.SITE_DOMAIN, r, election_id)
+            })
+        output['reports'] = reports
+
+        return output
+
+    try: election_id = path[3]
+    except: pass
+
+    if page == '':
+        elections = get_elections(type='api')
+        output['elections'] = elections
+
+        return output
+
+    elif page == 'summary':
+        output['summary'] = get_results_summary(election_id, ward)
+
+        return output
+
+    elif page == 'details':
+        output['details'] = get_results_details(election_id, ward)
+
+        return output
+
+    elif page == 'polls':
+        output['polls'] = get_results_polls(election_id, ward)
+
+        return output
+
+    elif page == 'wards':
+        output['wards'] = get_results_wards(election_id, ward)
+
+        return output
+
+    elif page == 'data':
+        output['data'] = get_results_data(election_id, ward)
+
+        return output
+
+
+    return output
+
+
+
+def get_results_page(path):
+    """
+    Returns election results
+    """
+    output = []
+    addline = output.append
+    section = 'Results'
+
+    title = 'Results'
+    description = 'See the election results in a variety of ways.'
+
+    # get second tier
+    try: page = path[1]
+    except: page = ''
+
+    # get ward if applicable
+    try: ward = tools.friendly_name(path[3])
+    except: ward = ''
+
+    election_id = 0
+    try: election_id = int(page)
+    except: pass
+
+    if election_id > 0: # base results page, return links to reports
+        reportlist = 'summary details polls wards data'.split(' ')
+        addline('<ul>')
+        for r in reportlist:
+            addline('<li><a href="/results/%s/%s">%s</a></li>' % (r, election_id, tools.friendly_name(r)))
+        addline('</ul>')
+
+    else:
+
+        try: election_id = path[2]
+        except: pass
+
+        if page == '':
+            elections = get_elections(page='results')
+
+            addline('<p>Choose an election to explore the results:</p>')
+            addline('<ul>')
+            for row in elections:
+                addline('<li><a href="%s">%s</a></li>' % (row['url'], row['title']))
+            addline('</ul>')
+
+
+        elif page == 'summary':
+
+            title = 'Results: Summary'
+            description = 'Summary results per candidate, per ward.'
+            dictionary = get_results_summary(election_id, ward)
+
+            wards = get_results_wards(election_id, ward)
+            
+            # get overall total registered_voters
+            total_rv = 0
+            for w in wards: total_rv+= w['registered_voters']
+            # addline('<p>Total registered voters: %s</p>' % (total_rv))
+            
+            # add mayoral voters
+            for d in dictionary: 
+                d['registered_voters'] = total_rv if d['ward'] == 'Mayor' else 0
+            
+            # add ward registered voters
+            for d in dictionary:
+                for w in wards:
+                    if d['iward'] == w['ward']: 
+                        d['registered_voters'] = w['registered_voters']
+                        
+            # calculate % votes
+            for d in dictionary:
+                if d['registered_voters'] > 0:
+                    d['percent'] = round(d['votes'] * 1.0 / d['registered_voters'] * 100, 2)
+                else:
+                    d['percent'] = 0
+            
+            # FIXME: need to add advance polls to totals        
+            fields = 'ward name votes registered_voters'.split(' ')
+            fields = 'ward name votes'.split(' ')
+            addline(make_table_from_dict(fields, dictionary))
+
+
+        elif page == 'details':
+
+            dictionary = get_results_details(election_id, ward)
+
+            title = 'Results: Details'
+            description = 'Detailed summary results per candidate, per ward, per poll.'
+            fields = 'ward poll poll_name name votes'.split(' ')
+            addline(make_table_from_dict(fields, dictionary))
+
+
+        elif page == 'polls':
+            dictionary = get_results_polls(election_id, ward)
+
+            title = 'Results: Polls'
+            description = 'List of polls for all wards.'
+            fields = 'ward poll poll_name registered_voters web_page'.split(' ')
+            addline(make_table_from_dict(fields, dictionary))
+
+
+
+        elif page == 'wards':
+            dictionary = get_results_wards(election_id, ward)
+
+            # add percent turnout
+            for d in dictionary:
+                if d['registered_voters'] > 0:
+                    d['percent_turnout'] = round( d['votes'] * 1.0 / d['registered_voters'] * 100, 2)
+                else:
+                    d['percent_turnout'] = 0
+
+            title = 'Results: Wards'
+            description = 'List of wards.'
+            fields = 'ward registered_voters votes percent_turnout'.split(' ')
+            # FIXME: need to add advance polls to totals
+            fields = 'ward registered_voters'.split(' ')
+            addline(make_table_from_dict(fields, dictionary))
+
+
+
+        elif page == 'data':
+            dictionary = get_results_data(election_id, ward)
+
+            title = 'Results: Data'
+            description = 'Raw table of all line-level election result data.'
+            fields = 'ward poll poll_name election name registered_voters votes web_page'.split(' ')
+            addline(make_table_from_dict(fields, dictionary))
+
+
+
+    template = t.default
+    template = template.replace('[[date]]', get_date())
+    template = template.replace('[[time]]', get_time())
+    template = template.replace('[[title]]', title)
+    template = template.replace('[[section]]', section)
+    template = template.replace('[[description]]', description)
+    template = template.replace('[[content]]', '\n'.join(output))
+    return title, template
+
 
 
 
@@ -161,7 +390,7 @@ def get_apidoc_page(path):
         addline(rs[0].content)
         addline('\n*Last Updated: %s*' % (rs[0].last_updated))
         content = markdown('\n'.join(output))
-        toc = pytoc.Toc(html_in=content)
+        toc = pytoc.Toc(html_in=content, levels=[3,4,5])
         toc.make_toc()
         full_content = '%s\n%s' % (toc.html_toc, toc.html_out)
 
@@ -281,8 +510,8 @@ def get_election_page(path):
                         thisward.replace(' 0', ' ')
                         )
                     )
-                    addline('<tr><th>Name</th><th>Email</th><th>Website</th><th>Phone</th></tr>')
-                
+                    addline('<tr><th>Name</th><th>Votes</th><th>Email</th><th>Website</th><th>Phone</th></tr>')
+
                 this_class, this_title = '', ''
                 if row['withdrawn'] == 1:
                     this_class = 'withdrawn'
@@ -290,6 +519,7 @@ def get_election_page(path):
 
                 addline('<tr class="%s" title="%s">' % (this_class, this_title))
                 addline('<td style="white-space: nowrap"><a title="See details for %s" href="%s">%s</a></td>' % (row['name'], row['url'], row['name']))
+                addline('<td>%s</td>' % (row['votes']))
                 if row['email'] != '':
                     addline('<td><a href="mailto:%s">%s</a></td>' % (row['email'], row['email']))
                 else:
@@ -328,7 +558,7 @@ def get_election_page(path):
                 blog['url'], blog['title'], blog['author'], blog['date_issued']
                 )
             )
-        
+
         addline('<h3><a name="apps"></a>Known Third-Party Apps (<a href="#">top</a>)</h3>')
         apps = get_apps(election_id)
         if len(apps) > 0:
@@ -514,7 +744,7 @@ def get_candidate_page(path):
         addline('<tr><th>Name</th><td><strong>%s</strong></td></tr>' % (row['name']))
         addline('<tr><th>Election</th><td><a href="/election/%s">%s</a></td></tr>' % (row['election_id'], row['election']))
         addline('<tr><th>Ward</th><td>%s</td></tr>' % (row['ward']))
-
+        addline('<tr><th>Votes</th><td>%s</td></tr>' % (row['votes']))
         addline('<tr><th>Email</th>')
         if row['email'] != '':
             addline('<td><a href="mailto:%s">%s</a></td>' % (row['email'], row['email']))
@@ -564,6 +794,41 @@ def get_candidate_page(path):
     template = template.replace('[[description]]', description)
     template = template.replace('[[content]]', '\n'.join(output))
     return title, template
+
+
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Data Generation Functions
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+
+def make_table_from_dict(fields, dictionary):
+    """
+    Takes a list of fields (keys) and a dictionary and returns an HTML table
+    """
+    output = []
+    addline = output.append
+    addline('<table>')
+    addline('<thead>')
+    addline('<tr>')
+    for field in fields:
+        addline('<th>%s</th>' % (tools.friendly_name(field)))
+    addline('</tr>')
+    addline('</thead>')
+    addline('<tbody>')
+    for row in dictionary:
+        addline('<tr>')
+        for field in fields:
+            addline('<td>%s</td>' % (row[field]))
+        addline('</tr>')
+    addline('</tbody>')
+    addline('</table>')
+    return '\n'.join(output)
 
 
 def get_straight_name(name):
@@ -617,7 +882,7 @@ def get_stub(type):
 
 
 
-def get_elections(type='web'):
+def get_elections(type='web', page='election'):
     """
     Returns a list of elections
     """
@@ -639,7 +904,7 @@ def get_elections(type='web'):
     elections = []
     for row in rs:
         elections.append({
-            'url': '%s/election/%s' % (stub, row.election_id),
+            'url': '%s/%s/%s' % (stub, page, row.election_id),
             'title': row.election,
             'type': row.type,
             'type_id': row.type_id,
@@ -719,18 +984,26 @@ def get_candidates(election_id, type='web', ward=''):
 
     if ward == '':
         query = sql.text("""
-            select * from election_candidates
-            where election_id = :election_id
-            order by ward, name
+            select c.*, sum(r.votes) as votes
+            from election_candidates c
+            inner join election_results r
+            on c.candidate_id = r.candidate_id
+            where c.election_id = :election_id
+            group by c.candidate_id
+            order by c.ward, c.name
             """, bind=sql.engine
         )
         rs = query.execute(election_id=election_id).fetchall()
     else:
         query = sql.text("""
-            select * from election_candidates
-            where election_id = :election_id
-            and ward = :ward
-            order by ward, name
+            select c.*, sum(r.votes) as votes
+            from election_candidates c
+            inner join election_results r
+            on c.candidate_id = r.candidate_id
+            where c.election_id = :election_id
+            and c.ward = :ward
+            group by c.candidate_id
+            order by c.ward, c.name
             """, bind=sql.engine
         )
         rs = query.execute(election_id=election_id, ward=ward).fetchall()
@@ -755,6 +1028,7 @@ def get_candidates(election_id, type='web', ward=''):
             'gender': row.gender if row.gender is not None else '',
             'incumbent': row.incumbent,
             'withdrawn': row.withdrawn,
+            'votes': int(row.votes),
         })
     return candidates
 
@@ -767,12 +1041,15 @@ def get_candidate_details(election_id, candidate_id, type='web'):
     stub = get_stub(type)
 
     query = sql.text("""
-        select c.*, e.election, t.type from election_candidates c
+        select c.*, e.election, t.type, sum(r.votes) as votes
+        from election_candidates c
         inner join elections e
         on c.election_id = e.election_id
         inner join election_types t
         on e.type_id = t.type_id
-        where candidate_id = :candidate_id
+        inner join election_results r
+        on c.candidate_id = r.candidate_id
+        where c.candidate_id = :candidate_id
         """, bind=sql.engine
     )
     rs = query.execute(candidate_id=candidate_id).fetchall()
@@ -795,6 +1072,7 @@ def get_candidate_details(election_id, candidate_id, type='web'):
         'gender': row.gender if row.gender is not None else '',
         'incumbent': row.incumbent,
         'withdrawn': row.withdrawn,
+        'votes': int(row.votes),
     }
 
 
@@ -1059,7 +1337,7 @@ def get_articles(election_id, doctype):
         )
     else:
         return []
-    
+
     rs = query.execute(election_id=election_id).fetchall()
     documents = []
     for row in rs:
@@ -1078,16 +1356,248 @@ def get_apps(election_id):
     """
     apps = []
     query = sql.text("""
-        select * 
-        from election_apps 
+        select *
+        from election_apps
         where election_id = :election_id
         """, bind=sql.engine
     )
     rs = query.execute(election_id=election_id).fetchall()
     for row in rs:
-        apps.append({ 
+        apps.append({
             'title': row.title,
             'url': row.url,
         })
     return apps
-            
+
+
+def get_results_summary(election_id, ward=''):
+    """
+    Returns a summary list of election results
+    """
+    summary = []
+    if ward == '':
+        query = sql.text("""
+            select c.candidate_id, c.ward, c.name, sum(r.votes) as votes, w.iward
+            from election_candidates c
+            inner join election_results r
+            on c.candidate_id = r.candidate_id
+            left join election_wards w
+            on c.ward = w.sward
+            where c.election_id = :election_id
+            group by c.candidate_id
+            order by c.ward, c.name
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id).fetchall()
+
+    else:
+        query = sql.text("""
+            select c.candidate_id, c.ward, c.name, sum(r.votes) as votes, w.iward
+            from election_candidates c
+            inner join election_results r
+            on c.candidate_id = r.candidate_id
+            left join election_wards w
+            on c.ward = w.sward
+            where c.election_id = :election_id
+            and c.ward = :ward
+            group by c.candidate_id
+            order by c.ward, c.name
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id, ward=ward).fetchall()
+
+    for row in rs:
+        summary.append({
+            'candidate_id': row.candidate_id,
+            'ward': row.ward,
+            'name': row.name,
+            'votes': int(row.votes),
+            'iward': int(row.iward) if row.iward is not None else 0
+        })
+    return summary
+
+
+def get_results_details(election_id, ward=''):
+    """
+    Returns a detail list of election results
+    """
+    details = []
+    if ward == '':
+        query = sql.text("""
+            select c.candidate_id, r.poll, r.poll_name, c.ward, c.name, sum(r.votes) as votes
+            from election_candidates c
+            inner join election_results r
+            on c.candidate_id = r.candidate_id
+            where c.election_id = :election_id
+            group by c.candidate_id, r.poll
+            order by c.ward, r.poll, c.name
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id).fetchall()
+
+    else:
+        query = sql.text("""
+            select c.candidate_id, r.poll, r.poll_name, c.ward, c.name, sum(r.votes) as votes
+            from election_candidates c
+            inner join election_results r
+            on c.candidate_id = r.candidate_id
+            where c.election_id = :election_id
+            and c.ward = :ward
+            group by c.candidate_id, r.poll
+            order by c.ward, r.poll, c.name
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id, ward=ward).fetchall()
+
+    for row in rs:
+        details.append({
+            'candidate_id': row.candidate_id,
+            'ward': row.ward,
+            'poll': row.poll,
+            'poll_name': row.poll_name,
+            'name': row.name,
+            'votes': int(row.votes),
+        })
+    return details
+
+
+def get_results_polls(election_id, ward=''):
+    """
+    Returns a detail list of election results
+    """
+    ward = ward.replace('Ward 0', '').replace('Ward ', '')
+    details = []
+    if ward == '':
+        query = sql.text("""
+            select distinct r.ward, r.poll, r.poll_name, r.registered_voters, r.web_page
+            from election_results r
+            where r.poll_name not like '%Advance%'
+            and r.election_id = :election_id
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id).fetchall()
+
+    else:
+        query = sql.text("""
+            select distinct r.ward, r.poll, r.poll_name, r.registered_voters
+            from election_results r
+            where r.poll_name not like '%Advance%'
+            and r.election_id = :election_id
+            and r.ward = :ward
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id, ward=ward).fetchall()
+
+    for row in rs:
+        details.append({
+            'ward': row.ward,
+            'poll': row.poll,
+            'poll_name': row.poll_name,
+            'registered_voters': int(row.registered_voters),
+            'web_page': row.web_page,
+        })
+    return details
+
+
+def get_results_wards(election_id, ward=''):
+    """
+    Returns a detail list of election results
+    """
+    ward = ward.replace('Ward 0', '').replace('Ward ', '')
+    details = []
+    if ward == '':
+        query = sql.text("""
+            select distinct s.ward, sum(s.registered_voters) as registered_voters, 
+            v.votes as votes, w.election
+            from
+            (
+                select distinct r.ward, r.registered_voters
+                from election_results r
+                where r.poll_name not like '%Advance%'
+                and election_id = :election_id
+            ) as s
+            inner join election_wards w
+            on s.ward = w.iward
+            inner join (
+            select r.election, sum(r.votes) as votes from election_results r
+            group by r.election
+            ) as v
+            on v.election = w.election
+            group by ward
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id).fetchall()
+
+    else:
+        query = sql.text("""
+            select distinct s.ward, sum(s.registered_voters) as registered_voters, 
+            v.votes as votes, w.election
+            from
+            (
+                select distinct r.ward, r.registered_voters
+                from election_results r
+                where r.poll_name not like '%Advance%'
+                and election_id = :election_id
+                and r.ward = :ward
+            ) as s
+            inner join election_wards w
+            on s.ward = w.iward
+            inner join (
+            select r.election, sum(r.votes) as votes from election_results r
+            group by r.election
+            ) as v
+            on v.election = w.election
+            group by ward
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id, ward=ward).fetchall()
+
+    for row in rs:
+        details.append({
+            'ward': row.ward,
+            'registered_voters': int(row.registered_voters),
+            'votes': int(row.votes),
+        })
+    return details
+
+
+
+def get_results_data(election_id, ward=''):
+    """
+    Returns a detail list of election results
+    """
+    ward = ward.replace('Ward 0', '').replace('Ward ', '')
+    details = []
+    if ward == '':
+        query = sql.text("""
+            select r.*
+            from election_results r
+            where r.election_id = :election_id
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id).fetchall()
+
+    else:
+        query = sql.text("""
+            select r.*
+            from election_results r
+            where r.election_id = :election_id
+            and r.ward = :ward
+            """, bind=sql.engine
+        )
+        rs = query.execute(election_id=election_id, ward=ward).fetchall()
+
+    for row in rs:
+        details.append({
+            'poll': row.poll,
+            'poll_name': row.poll_name,
+            'ward': row.ward,
+            'election': row.election,
+            'name': row.name,
+            'votes': row.votes,
+            'registered_voters': row.registered_voters,
+            'web_page': row.web_page,
+            'election_id': row.election_id,
+            'candidate_id': row.candidate_id,
+        })
+    return details

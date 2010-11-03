@@ -14,7 +14,7 @@ import config as c
 sys.path.extend(c.SYSPATH)
 
 import web
-web.config.debug = False
+#web.config.debug = False
 import handlers
 h = handlers.Handler()
 import functions as f
